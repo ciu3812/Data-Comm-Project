@@ -1,4 +1,6 @@
-# Data Communication and Networking - CSCI 351
+# Data Communication and Networking - Project
+
+P2P File Sharing Software
 
 ## Authors
 
