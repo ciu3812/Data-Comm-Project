@@ -1,0 +1,5 @@
+## Ignore python generated files
+__pycache__
+
+## Ignore files in files directory
+files
