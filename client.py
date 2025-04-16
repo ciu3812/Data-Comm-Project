@@ -26,10 +26,6 @@ def main():
         print(f"\'{file_dir}\' is NOT a valid directory")
         sys.exit(1)
 
-    if not os.path.isfile(file_dir + "\\index.txt"):
-        print("Index file does not exist in provided directory!!")
-        sys.exit(1)
-
     global sock
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
