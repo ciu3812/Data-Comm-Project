@@ -10,10 +10,16 @@ import os
 import sys
 import threading
 
-sock = None
+## Constants
 LOCAL_HOST = '127.0.0.1'
-PORT_RANGE = (50000,59999)
+PORT_RANGE = (50000,50100) ## Inclusive range
+PEER_DISCOVERY_TIMEOUT = 8
+PEER_DISCOVERY_MAX = 10
+
+sock = None
+running_port = 0 ## The port this client is running on
 print_lock = threading.Lock()
+broadcast_end_event = threading.Event()
 
 def main():
     """
@@ -28,7 +34,7 @@ def main():
         print(f"\'{file_dir}\' is NOT a valid directory")
         sys.exit(1)
 
-    global sock
+    global sock, running_port
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     while True: ## loop until socket binds to some port
@@ -37,47 +43,78 @@ def main():
             sock.bind((LOCAL_HOST, random_port))
             sock.listen()
             print(f"Socket running on port {random_port}")
+            running_port = random_port
             break
         except:
-            print(f"Port {random_port} is busy, trying another")
+            pass # do nothing, try another port
 
+    broadcast_t = threading.Thread(target=broadcast)
+    broadcast_t.start()
+
+    print("This is peer to peer file sharing system!!")
+    print("Enter \'help\' for a list of helpful commands")
     while True:
-        conn, addr = sock.accept()
-        t = threading.Thread(target=incoming_data, args=(conn, addr))
-        t.start()
-
-def incoming_data(conn, addr):
-    """
-    Handles incoming data from a socket and handles end of connection.
-
-    Meant to be run in a thread
-    """
-    with conn:
-        with print_lock:
-            print(f"Connected by {addr}")
-
-        while True:
-            data = conn.recv(1024)
-            if not data:
-                with print_lock:
-                    print(f"Connection with {addr} was closed")
+        msg = input(" -> ")
+        match msg:
+            case "help":
+                print("help (Print this help message)")
+                print("exit (Close this client)")
+                print("d (Run peer discovery)")
+            case "exit":
+                broadcast_end_event.set()
+                broadcast_t.join()
+                print("Exiting...")
                 break
-            with print_lock:
-                print(f"Received: {data.decode()}, From: {addr}")
+            case "d":
+                peers = peer_discovery()
+                if len(peers) > 0:
+                    for i in range(len(peers)):
+                        print(f"{i + 1}: {peers[i]}")
+                else:
+                    print("No peers were discovered")
+            case _:
+                print("Not a recognized command")
 
-def handle_sigint(signum, frame):
+def peer_discovery():
     """
-    Handles a keyboard interrupt, closes the socket
+    Discovers valid peers in the network, up to a limit
     """
-    global sock
+    peers = [] ## A list of ports that contain valid peers
+    start_time = time.perf_counter()
+    curr_port = PORT_RANGE[0]
+    while curr_port < PORT_RANGE[1] + 1:
+        if curr_port != running_port: # Don't try to connect to yourself
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(0.02) ## low timeout because on localhost
+                s.connect((LOCAL_HOST, curr_port))
+                s.sendall(b'PEER')
+                data = s.recv(1024)
+                if data.decode() == "PEER":
+                    peers.append(curr_port)
+                    s.close()
+            except:
+                pass
+            currrent_time = time.perf_counter()
+            if currrent_time - start_time > PEER_DISCOVERY_TIMEOUT:
+                break
+        curr_port += 1
+    return peers
 
-    if sock is not None:
-        sock.close()
-
-    print("Closing socket and exiting...")
-    exit(0)
-
-signal.signal(signal.SIGINT, handle_sigint)
+def broadcast():
+    """
+    Broadcasts to incoming connections that this is a valid peer
+    """
+    sock.setblocking(False)
+    while not broadcast_end_event.is_set():
+        try:
+            conn, addr = sock.accept()
+            data = conn.recv(64)
+            if data.decode() == "PEER":
+                conn.sendall(b'PEER')
+            conn.close()
+        except:
+            pass
 
 if __name__ == "__main__":
     main()
