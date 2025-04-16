@@ -12,9 +12,9 @@ import threading
 
 ## Constants
 LOCAL_HOST = '127.0.0.1'
-PORT_RANGE = (50000,50100) ## Inclusive range
-PEER_DISCOVERY_TIMEOUT = 8
-PEER_DISCOVERY_MAX = 10
+PORT_RANGE = (50000,50050) ## Inclusive range
+PEER_DISCOVERY_TIMEOUT = 10
+PEER_DISCOVERY_MAX = 5
 
 sock = None
 running_port = 0 ## The port this client is running on
@@ -82,7 +82,7 @@ def peer_discovery():
     peers = [] ## A list of ports that contain valid peers
     start_time = time.perf_counter()
     curr_port = PORT_RANGE[0]
-    while curr_port < PORT_RANGE[1] + 1:
+    while curr_port < PORT_RANGE[1] + 1 and len(peers) < PEER_DISCOVERY_MAX:
         if curr_port != running_port: # Don't try to connect to yourself
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
