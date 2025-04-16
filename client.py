@@ -8,10 +8,12 @@ import time
 import signal
 import os
 import sys
+import threading
 
 sock = None
 LOCAL_HOST = '127.0.0.1'
 PORT_RANGE = (50000,59999)
+print_lock = threading.Lock()
 
 def main():
     """
@@ -41,17 +43,27 @@ def main():
 
     while True:
         conn, addr = sock.accept()
+        t = threading.Thread(target=incoming_data, args=(conn, addr))
+        t.start()
 
-        with conn:
+def incoming_data(conn, addr):
+    """
+    Handles incoming data from a socket and handles end of connection.
+
+    Meant to be run in a thread
+    """
+    with conn:
+        with print_lock:
             print(f"Connected by {addr}")
 
-            while True:
-                data = conn.recv(1024)
-                if not data:
-                    print("Connection was closed")
-                    conn.close()
-                    break
-                print(f"Received: {data.decode()}")
+        while True:
+            data = conn.recv(1024)
+            if not data:
+                with print_lock:
+                    print(f"Connection with {addr} was closed")
+                break
+            with print_lock:
+                print(f"Received: {data.decode()}, From: {addr}")
 
 def handle_sigint(signum, frame):
     """
