@@ -10,6 +10,7 @@ import os
 import sys
 
 sock = None
+LOCAL_HOST = '127.0.0.1'
 PORT_RANGE = (50000,59999)
 
 def main():
@@ -35,7 +36,7 @@ def main():
     while True: ## loop until socket binds to some port
         try:
             random_port = random.randint(PORT_RANGE[0], PORT_RANGE[1])
-            sock.bind(('127.0.0.1', random_port))
+            sock.bind((LOCAL_HOST, random_port))
             sock.listen()
             print(f"Socket running on port {random_port}")
             break
@@ -43,7 +44,18 @@ def main():
             print(f"Port {random_port} is busy, trying another")
 
     while True:
-        time.sleep(1)
+        conn, addr = sock.accept()
+
+        with conn:
+            print(f"Connected by {addr}")
+
+            while True:
+                data = conn.recv(1024)
+                if not data:
+                    print("Connection was closed")
+                    conn.close()
+                    break
+                print(f"Received: {data.decode()}")
 
 def handle_sigint(signum, frame):
     """
