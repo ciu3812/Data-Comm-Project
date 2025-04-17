@@ -86,7 +86,8 @@ def main():
             case "request":
                 peer_port = int(input("Enter peer port to request from: "))
                 file_name = input("Enter file name to request: ")
-                request(peer_port, file_name)
+                destination = input("Enter destination to save file to: ")
+                request(peer_port, file_name, destination)
             case _:
                 print("Not a recognized command")
 
@@ -139,8 +140,8 @@ def broadcast():
             pass
 
 
-def request(peer_port, file_name):
-    recv_thread = threading.Thread(target=receiver, args=(LOCAL_HOST, running_port + 100, file_name))
+def request(peer_port, file_name, destination):
+    recv_thread = threading.Thread(target=receiver, args=(LOCAL_HOST, running_port + 100, file_name, destination))
     recv_thread.start()
     
     try:
@@ -183,7 +184,7 @@ def sender(file_path, receiver_ip, receiver_port):
         print(f"{filename} sent in {chunk_count} chunks, hash: {file_hash}")
 
 
-def receiver(bind_ip, bind_port, file_name):
+def receiver(bind_ip, bind_port, file_name, destination):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((bind_ip, bind_port))
         s.listen(1)
@@ -196,7 +197,7 @@ def receiver(bind_ip, bind_port, file_name):
         metadata = conn.recv(BUFFER_SIZE).decode()
         filesize, expected_hash, _ = metadata.split("<SEPARATOR>")
         filesize = int(filesize)
-        output_name = os.path.join("received", file_name)
+        output_name = os.path.join(destination, file_name)
 
         with open(output_name, "wb") as f:
             received = 0
