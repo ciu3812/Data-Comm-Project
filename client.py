@@ -64,8 +64,9 @@ def main():
                 print("exit (Close this client)")
                 print("discover (Run peer discovery)")
                 print("peers (Show peers currently stored)")
-                print("request (Request specific file from specific peer)")
                 print("index (Show files from specific peer)")
+                print("request (Request specific file from specific peer)")
+                
             case "exit":
                 broadcast_end_event.set()
                 broadcast_t.join()
@@ -130,9 +131,10 @@ def broadcast():
             conn, addr = sock.accept()
             data = conn.recv(64)
             if data.decode() == "PEER":
+                print("Received Discover Request")
                 conn.sendall(b'PEER')
             elif data.decode().startswith("REQUEST"):
-                print("Received Request")
+                print("Received Request To Download File")
                 try:
                     _, receiver_port, file_name = data.decode().split("<SEPARATOR>")
                     file_path = os.path.join(sys.argv[1], file_name)
@@ -141,6 +143,7 @@ def broadcast():
                 except Exception as e:
                     print(f"Error handling file request {e}")
             elif data.decode() == "INDEX":
+                print("Receive Index Request")
                 files = os.listdir(sys.argv[1])
                 response = "<SEPARATOR>".join(files)
                 conn.sendall(response.encode())
