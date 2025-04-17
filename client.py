@@ -51,6 +51,8 @@ def main():
     broadcast_t = threading.Thread(target=broadcast)
     broadcast_t.start()
 
+    peers = []
+
     print("This is peer to peer file sharing system!!")
     print("Enter \'help\' for a list of helpful commands")
     while True:
@@ -59,7 +61,8 @@ def main():
             case "help":
                 print("help (Print this help message)")
                 print("exit (Close this client)")
-                print("d (Run peer discovery)")
+                print("discover (Run peer discovery)")
+                print("peers (Show peers currently stored)")
                 print("request (Run file request)")
             case "exit":
                 broadcast_end_event.set()
@@ -67,13 +70,19 @@ def main():
                 sock.close()
                 print("Exiting...")
                 break
-            case "d":
+            case "discover":
                 peers = peer_discovery()
                 if len(peers) > 0:
                     for i in range(len(peers)):
                         print(f"{i + 1}: {peers[i]}")
                 else:
                     print("No peers were discovered")
+            case "peers":
+                if len(peers) > 0:
+                    for i in range(len(peers)):
+                        print(f"{i + 1}: {peers[i]}")
+                else:
+                    print("No peers are stored")
             case "request":
                 peer_port = int(input("Enter peer port to request from: "))
                 file_name = input("Enter file name to request: ")
