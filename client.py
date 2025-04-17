@@ -1,6 +1,14 @@
 """
+Peer to Peer File Sharing client
+
 This is the peer to peer file sharing client.
+
+Caleb Underkoffler
+Damon Gonzalez
+Data Comm & Network
+Project
 """
+
 
 import socket
 import random
@@ -9,6 +17,7 @@ import os
 import sys
 import threading
 import hashlib
+
 
 ## Constants
 LOCAL_HOST = '127.0.0.1'
@@ -22,9 +31,11 @@ running_port = 0 ## The port this client is running on
 print_lock = threading.Lock()
 broadcast_end_event = threading.Event()
 
+
 def main():
     """
-    The main program for this module
+    The main program and entry point for this module
+    Handles user interaction and commands
     """
     if len(sys.argv) < 2:
         print("Provide a file directory to read from")
@@ -49,7 +60,7 @@ def main():
         except:
             pass # do nothing, try another port
 
-    broadcast_t = threading.Thread(target=broadcast)
+    broadcast_t = threading.Thread(target=listener)
     broadcast_t.start()
 
     peers = []
@@ -97,9 +108,13 @@ def main():
             case _:
                 print("Not a recognized command")
 
+
 def peer_discovery():
     """
     Discovers valid peers in the network, up to a limit
+
+    Returns:
+        list[int]: a list of active peer ports
     """
     peers = [] ## A list of ports that contain valid peers
     start = int(time.time())
@@ -120,9 +135,13 @@ def peer_discovery():
                 pass
     return peers
 
-def broadcast():
+
+def listener():
     """
-    Broadcasts to incoming connections that this is a valid peer
+    Listens for incoming messages from peers and handles them:
+    - Responds to "PEER" handshake for discovery.
+    - Handles file transfer "REQUEST" and starts a sender thread.
+    - Responds to "INDEX" requests with the list of available files.
     """
     sock.setblocking(False)
     sock.settimeout(2)
@@ -153,6 +172,14 @@ def broadcast():
 
 
 def request(peer_port, file_name, destination):
+    """
+    Requests a file from a peer and starts a receiver to download the file to specified location.
+
+    Args:
+        peer_port (int): Peer's port to request the file from.
+        file_name (str): Name of the file to request.
+        destination (str): Local path to save the file once downloaded.
+    """
     recv_thread = threading.Thread(target=receiver, args=(LOCAL_HOST, running_port + 100, file_name, destination))
     recv_thread.start()
     
@@ -169,6 +196,14 @@ def request(peer_port, file_name, destination):
 
 
 def sender(file_path, receiver_ip, receiver_port):
+    """
+    Sends a file to a peer with metadata and hash verification.
+
+    Args:
+        file_path (str): Local path of the file to send.
+        receiver_ip (str): The IP of the receiver.
+        receiver_port (int): The port of the receiver.
+    """
     filesize = os.path.getsize(file_path)
     filename = os.path.basename(file_path)
 
@@ -195,6 +230,15 @@ def sender(file_path, receiver_ip, receiver_port):
 
 
 def receiver(bind_ip, bind_port, file_name, destination):
+    """
+    Receives a file from a peer, verifies its integrity, then saves it to specified location.
+
+    Args:
+        bind_ip (str): IP to bind the receiving socket.
+        bind_port (int): Port to bind the receiving socket.
+        file_name (str): Name of file to receive.
+        destination (str): location to save the file.
+    """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((bind_ip, bind_port))
         s.listen(1)
@@ -230,6 +274,12 @@ def receiver(bind_ip, bind_port, file_name, destination):
 
 
 def index(peer_port):
+    """
+    Requests the list of available files from a given peer and prints them.
+
+    Args:
+        peer_port (int): The port of the peer to see files of.
+    """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(2)
@@ -242,6 +292,7 @@ def index(peer_port):
                 print(f" - {file}")
     except Exception as e:
         print(f"Could not retrieve index from {peer_port} {e}")
+
 
 if __name__ == "__main__":
     main()
