@@ -29,7 +29,7 @@ BUFFER_SIZE = 4096
 sock = None
 running_port = 0 ## The port this client is running on
 print_lock = threading.Lock()
-broadcast_end_event = threading.Event()
+listener_end_event = threading.Event()
 
 
 def main():
@@ -37,6 +37,8 @@ def main():
     The main program and entry point for this module
     Handles user interaction and commands
     """
+
+    #error catching
     if len(sys.argv) < 2:
         print("Provide a file directory to read from")
         sys.exit(1)
@@ -48,6 +50,7 @@ def main():
 
     global sock, running_port
     
+    #bind user to a port
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     while True: ## loop until socket binds to some port
         try:
@@ -60,11 +63,13 @@ def main():
         except:
             pass # do nothing, try another port
 
-    broadcast_t = threading.Thread(target=listener)
-    broadcast_t.start()
+    #start listener
+    listener_t = threading.Thread(target=listener)
+    listener_t.start()
 
     peers = []
 
+    #run command line interface
     print("This is peer to peer file sharing system!!")
     print("Enter \'help\' for a list of helpful commands")
     while True:
@@ -79,8 +84,8 @@ def main():
                 print("request (Request specific file from specific peer)")
                 
             case "exit":
-                broadcast_end_event.set()
-                broadcast_t.join()
+                listener_end_event.set()
+                listener_t.join()
                 sock.close()
                 print("Exiting...")
                 break
@@ -117,7 +122,11 @@ def peer_discovery():
         list[int]: a list of active peer ports
     """
     peers = [] ## A list of ports that contain valid peers
+
+    #start timer for timeout
     start = int(time.time())
+
+    #loop through random ports until we find all peers, reach limit of peers, or timeout
     while int(time.time()) - start < PEER_DISCOVERY_TIMEOUT and len(peers) < PEER_DISCOVERY_MAX:
         curr_port = random.randint(PORT_RANGE[0], PORT_RANGE[1])
         if curr_port not in peers and curr_port != running_port: # Don't try to connect to yourself
@@ -145,13 +154,16 @@ def listener():
     """
     sock.setblocking(False)
     sock.settimeout(2)
-    while not broadcast_end_event.is_set():
+    while not listener_end_event.is_set():
         try:
             conn, addr = sock.accept()
             data = conn.recv(64)
+
+            #handle discovery
             if data.decode() == "PEER":
                 print("Received Discover Request")
                 conn.sendall(b'PEER')
+            #handle request
             elif data.decode().startswith("REQUEST"):
                 print("Received Request To Download File")
                 try:
@@ -161,6 +173,7 @@ def listener():
                     sender_thread.start()
                 except Exception as e:
                     print(f"Error handling file request {e}")
+            #handle index
             elif data.decode() == "INDEX":
                 print("Receive Index Request")
                 files = os.listdir(sys.argv[1])
@@ -180,9 +193,11 @@ def request(peer_port, file_name, destination):
         file_name (str): Name of the file to request.
         destination (str): Local path to save the file once downloaded.
     """
+    #start receiver thread
     recv_thread = threading.Thread(target=receiver, args=(LOCAL_HOST, running_port + 100, file_name, destination))
     recv_thread.start()
     
+    #send a request message to peer
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             print("sent request")
@@ -207,16 +222,20 @@ def sender(file_path, receiver_ip, receiver_port):
     filesize = os.path.getsize(file_path)
     filename = os.path.basename(file_path)
 
+    #open file and proccess hash
     with open(file_path, "rb") as f:
         file_hash = hashlib.sha256(f.read()).hexdigest()
 
+    #connect to receiver
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((receiver_ip, receiver_port))
 
+        #put metadata together of size BUFFERSIZE
         metadata = f"{filesize}<SEPARATOR>{file_hash}<SEPARATOR>"
         metadata = metadata.ljust(BUFFER_SIZE, '#')
         s.sendall(metadata.encode())
 
+        #send file in chunks
         with open(file_path, "rb") as f:
             chunk_count = 0
             while True:
@@ -242,17 +261,16 @@ def receiver(bind_ip, bind_port, file_name, destination):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((bind_ip, bind_port))
         s.listen(1)
-        print(f"Listening on {bind_ip}:{bind_port}")
-
 
         conn, addr = s.accept()
-        print(f"Connection from {addr}")
 
+        #process metadata
         metadata = conn.recv(BUFFER_SIZE).decode()
         filesize, expected_hash, _ = metadata.split("<SEPARATOR>")
         filesize = int(filesize)
         output_name = os.path.join(destination, file_name)
 
+        #recieve the file in chunks and save to destination
         with open(output_name, "wb") as f:
             received = 0
             chunk_count = 0
@@ -264,6 +282,7 @@ def receiver(bind_ip, bind_port, file_name, destination):
                 received += len(chunk)
                 chunk_count += 1
 
+        #check file integrity
         with open(output_name, "rb") as f:
             actual_hash = hashlib.sha256(f.read()).hexdigest()
 
@@ -283,10 +302,12 @@ def index(peer_port):
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(2)
+            #request the list of files from peer
             s.connect((LOCAL_HOST, peer_port))
             s.sendall(b"INDEX")
             data = s.recv(64).decode()
             files = data.split("<SEPARATOR>")
+            #print files
             print(f"Files on peer {peer_port}:")
             for file in files:
                 print(f" - {file}")
