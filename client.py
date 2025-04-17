@@ -15,6 +15,7 @@ LOCAL_HOST = '127.0.0.1'
 PORT_RANGE = (50000,50040) ## Inclusive range
 PEER_DISCOVERY_TIMEOUT = 10
 PEER_DISCOVERY_MAX = 5
+BUFFER_SIZE = 4096
 
 sock = None
 running_port = 0 ## The port this client is running on
@@ -63,7 +64,8 @@ def main():
                 print("exit (Close this client)")
                 print("discover (Run peer discovery)")
                 print("peers (Show peers currently stored)")
-                print("request (Run file request)")
+                print("request (Request specific file from specific peer)")
+                print("index (Show files from specific peer)")
             case "exit":
                 broadcast_end_event.set()
                 broadcast_t.join()
@@ -88,6 +90,9 @@ def main():
                 file_name = input("Enter file name to request: ")
                 destination = input("Enter destination to save file to: ")
                 request(peer_port, file_name, destination)
+            case "index":
+                peer_port = int(input("Enter peer port to see files from: "))
+                index(peer_port)
             case _:
                 print("Not a recognized command")
 
@@ -135,6 +140,10 @@ def broadcast():
                     sender_thread.start()
                 except Exception as e:
                     print(f"Error handling file request {e}")
+            elif data.decode() == "INDEX":
+                files = os.listdir(sys.argv[1])
+                response = "<SEPARATOR>".join(files)
+                conn.sendall(response.encode())
             conn.close()
         except:
             pass
@@ -155,8 +164,6 @@ def request(peer_port, file_name, destination):
 
     recv_thread.join()
 
-
-BUFFER_SIZE = 4096
 
 def sender(file_path, receiver_ip, receiver_port):
     filesize = os.path.getsize(file_path)
@@ -218,6 +225,20 @@ def receiver(bind_ip, bind_port, file_name, destination):
         else:
             print(f"File received but hash mismatch, expected {expected_hash} but got {actual_hash}")
 
+
+def index(peer_port):
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(2)
+            s.connect((LOCAL_HOST, peer_port))
+            s.sendall(b"INDEX")
+            data = s.recv(64).decode()
+            files = data.split("<SEPARATOR>")
+            print(f"Files on peer {peer_port}:")
+            for file in files:
+                print(f" - {file}")
+    except Exception as e:
+        print(f"Could not retrieve index from {peer_port} {e}")
 
 if __name__ == "__main__":
     main()
