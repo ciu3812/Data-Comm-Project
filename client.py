@@ -95,9 +95,10 @@ def peer_discovery():
     Discovers valid peers in the network, up to a limit
     """
     peers = [] ## A list of ports that contain valid peers
-    curr_port = PORT_RANGE[0]
-    while curr_port < PORT_RANGE[1] + 1 and len(peers) < PEER_DISCOVERY_MAX:
-        if curr_port != running_port: # Don't try to connect to yourself
+    start = int(time.time())
+    while int(time.time()) - start < PEER_DISCOVERY_TIMEOUT and len(peers) < PEER_DISCOVERY_MAX:
+        curr_port = random.randint(PORT_RANGE[0], PORT_RANGE[1])
+        if curr_port not in peers and curr_port != running_port: # Don't try to connect to yourself
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 s.settimeout(0.05) ## low timeout because on localhost
@@ -110,7 +111,6 @@ def peer_discovery():
                     s.close()
             except:
                 pass
-        curr_port += 1
     return peers
 
 def broadcast():
