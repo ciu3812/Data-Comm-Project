@@ -5,14 +5,13 @@ This is the peer to peer file sharing client.
 import socket
 import random
 import time
-import signal
 import os
 import sys
 import threading
 
 ## Constants
 LOCAL_HOST = '127.0.0.1'
-PORT_RANGE = (50000,50050) ## Inclusive range
+PORT_RANGE = (50000,50040) ## Inclusive range
 PEER_DISCOVERY_TIMEOUT = 10
 PEER_DISCOVERY_MAX = 5
 
@@ -63,6 +62,7 @@ def main():
             case "exit":
                 broadcast_end_event.set()
                 broadcast_t.join()
+                sock.close()
                 print("Exiting...")
                 break
             case "d":
@@ -80,24 +80,21 @@ def peer_discovery():
     Discovers valid peers in the network, up to a limit
     """
     peers = [] ## A list of ports that contain valid peers
-    start_time = time.perf_counter()
     curr_port = PORT_RANGE[0]
     while curr_port < PORT_RANGE[1] + 1 and len(peers) < PEER_DISCOVERY_MAX:
         if curr_port != running_port: # Don't try to connect to yourself
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(0.02) ## low timeout because on localhost
+                s.settimeout(0.05) ## low timeout because on localhost
                 s.connect((LOCAL_HOST, curr_port))
                 s.sendall(b'PEER')
-                data = s.recv(1024)
+                s.settimeout(1) # to a whole second to wait for the handshake
+                data = s.recv(64)
                 if data.decode() == "PEER":
                     peers.append(curr_port)
                     s.close()
             except:
                 pass
-            currrent_time = time.perf_counter()
-            if currrent_time - start_time > PEER_DISCOVERY_TIMEOUT:
-                break
         curr_port += 1
     return peers
 
@@ -106,6 +103,7 @@ def broadcast():
     Broadcasts to incoming connections that this is a valid peer
     """
     sock.setblocking(False)
+    sock.settimeout(2)
     while not broadcast_end_event.is_set():
         try:
             conn, addr = sock.accept()
